@@ -317,6 +317,7 @@ def fn_density_maps(years, months, resolution, loc):
         months = ['{:02}'.format(i) for i in months]
         comb_days = [''.join(x) for x in list((itertools.product(map(str, years), months, days)))]
         for day in comb_days:
+            print day
             try:
                 all_data = fn_read_summary_csv(path_file='../data/summary/day/raw_lightning_{}1200.csv'.format(day))
 
@@ -343,14 +344,20 @@ def fn_maps(df_data, loc, resolution, name):
     if loc is 'BOG':
         ext = fn_get_shape_extent('../gis/Bog_Localidades.shp')
         pixel = dt_config['QuerySetUp']['bog_res']
+        area = pixel * 111.325
 
     elif loc is 'COL':
         ext = fn_get_shape_extent('../gis/Colombia_Continental.shp')
         pixel = dt_config['QuerySetUp']['col_res']
+        area = pixel * 111.325
 
     else:
         ext = None
         pixel = None
+        area = None
+
+    path_count = '../rasters/count/{}/{}/CDT_{}_{}.tif'.format(resolution, loc, loc, name)
+    path_density = '../rasters/density/{}/{}/DDT_{}_{}.tif'.format(resolution, loc, loc, name)
 
     xmin = ext['xmin'] - 0.1
     xmax = ext['xmax'] + 0.1
@@ -362,12 +369,11 @@ def fn_maps(df_data, loc, resolution, name):
     nrows = int((ymax - ymin) / pixel) + 1
 
     counts, y, x = np.histogram2d(df_data.Latitude, df_data.Longitude, bins=(nrows, ncols), range=([ymin, ymax], [xmin, xmax]))
-    # density = counts / (pixel ** 2)
-    density = counts / 25.
+    density = counts / area
 
     # Dado que np.histogram2d devuelve ordenado al reves la matriz de conteo, es necesario reversar la matriz solo en las filas
-    fn_array2raster(newRasterfn='../rasters/count/{}/CDT_{}_{}.tif'.format(resolution, loc, name), rasterOrigin=raster_origin, pixelWidth=pixel, pixelHeight=-pixel, array=np.flip(counts, axis=0), gdtype=gdal.GDT_Int16)
-    fn_array2raster(newRasterfn='../rasters/density/{}/DDT_{}_{}.tif'.format(resolution, loc, name), rasterOrigin=raster_origin, pixelWidth=pixel, pixelHeight=-pixel, array=np.flip(density, axis=0), gdtype=gdal.GDT_Float32)
+    fn_array2raster(newRasterfn=path_count, rasterOrigin=raster_origin, pixelWidth=pixel, pixelHeight=-pixel, array=np.flip(counts, axis=0), gdtype=gdal.GDT_Int16)
+    fn_array2raster(newRasterfn=path_density, rasterOrigin=raster_origin, pixelWidth=pixel, pixelHeight=-pixel, array=np.flip(density, axis=0), gdtype=gdal.GDT_Float32)
 
 
 def fn_make_summary(years, months, resolution):
@@ -419,17 +425,9 @@ def main():
     or Bogota ('BOG')
     :return: CSV Compressed with the summary info
     """
-    # get_txt_files(all_files=True)
-    # fn_make_summary(years=[2018], months=[1, 2, 3, 4], resolution='M')
-    # fn_make_summary(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='M')
-    # fn_make_summary(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='D')
-    # fn_make_summary(years=[2018], months=[1, 2, 3, 4], resolution='D')
-    # fn_density_maps(years=[2018], months=[1, 2, 3, 4], resolution='M', loc='BOG')
-    # fn_density_maps(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='M', loc='BOG')
-    # fn_density_maps(years=[2018], months=[1, 2, 3, 4], resolution='D', loc='BOG')
-    # fn_density_maps(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='D', loc='BOG')
-
-    fn_density_maps(years=[2018], months=[4], resolution='M', loc='COL')
+    get_txt_files(all_files=True)
+    # fn_make_summary(years=[2017, 2018], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='M')
+    fn_density_maps(years=[2017, 2018], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='M', loc='BOG')
 
 
 if __name__ == '__main__':
