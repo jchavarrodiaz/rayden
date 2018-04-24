@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import time
 import urllib2
 
 import pandas as pd
@@ -117,10 +118,9 @@ def main(kml_date):
                     per_obs_desc = per_obs_desc + line_desc
                 text_info = '{} {}'.format(per_obs, per_obs_desc).replace(u'\xe9'.encode('utf-8'), 'e')
 
-            gen_kml(points=df_data, other_info=text_info, icon=dt_config['Paths']['icon'], name=dict_nameout[i], light=False)
+            gen_kml(points=df_data, other_info=text_info, icon=dt_config['Paths']['logo_path'], name=dict_nameout[i], light=False)
 
 
 if __name__ == '__main__':
-    dates = ['2018-03-27', '2018-03-28', '2018-03-29', '2018-03-30', '2018-03-31', '2018-04-01', '2018-04-02', '2018-04-03']
-    for date in dates:
-        main(kml_date=date)
+    main(kml_date=time.strftime('%Y-%m-%d'))
+

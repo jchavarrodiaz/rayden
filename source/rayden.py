@@ -281,7 +281,7 @@ def fn_density_maps(years, months, resolution, loc):
 
     if resolution is 'Y':
         for year in years:
-            all_data = fn_read_summary_csv(path_file='../data/summary/year/lightning_{}.csv'.format(str(year)))
+            all_data = fn_read_summary_csv(path_file='../data/summary/year/raw_lightning_{}.csv'.format(str(year)))
             if loc is 'BOG':
                 mask_shape = '../gis/Bog_Localidades.shp'
                 max_error = dt_config['LightFilters']['error_bog']
@@ -290,9 +290,15 @@ def fn_density_maps(years, months, resolution, loc):
                 max_error = dt_config['LightFilters']['error_col']
             else:
                 mask_shape = None
-            data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
-            data_filter = fn_filter_light(raw=data)
-            fn_maps(data_filter, loc, resolution, year)
+                max_error = None
+
+            # Check if the file exist
+            exist = os.path.isfile('../results/rasters/count/{}/{}/CDT_{}_{}.tif'.format(resolution, loc, loc, str(year)))
+
+            if not exist:
+                data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
+                data_filter = fn_filter_light(raw=data, max_error=max_error)
+                fn_maps(data_filter, loc, resolution, year)
 
     elif resolution is 'M':
         months = ['{:02}'.format(i) for i in months]
@@ -308,9 +314,14 @@ def fn_density_maps(years, months, resolution, loc):
             else:
                 mask_shape = None
                 max_error = None
-            data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
-            data_filter = fn_filter_light(raw=data, max_amp=dt_config['LightFilters']['amperage'], max_error=max_error)
-            fn_maps(data_filter, loc, resolution, month)
+
+            # Check if the file exist
+            exist = os.path.isfile('../results/rasters/count/{}/{}/CDT_{}_{}.tif'.format(resolution, loc, loc, month))
+
+            if not exist:
+                data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
+                data_filter = fn_filter_light(raw=data, max_amp=dt_config['LightFilters']['amperage'], max_error=max_error)
+                fn_maps(data_filter, loc, resolution, month)
 
     elif resolution is 'D':
         days = ['{:02d}'.format(i) for i in np.arange(1, 32)]
@@ -331,9 +342,13 @@ def fn_density_maps(years, months, resolution, loc):
                     mask_shape = None
                     max_error = None
 
-                data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
-                data_filter = fn_filter_light(raw=data, max_amp=dt_config['LightFilters']['amperage'], max_error=max_error)
-                fn_maps(data_filter, loc, resolution, day)
+                # Check if the file exist
+                exist = os.path.isfile('../results/rasters/count/{}/{}/CDT_{}_{}.tif'.format(resolution, loc, loc, day))
+
+                if not exist:
+                    data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
+                    data_filter = fn_filter_light(raw=data, max_amp=dt_config['LightFilters']['amperage'], max_error=max_error)
+                    fn_maps(data_filter, loc, resolution, day)
             except IOError:
                 print 'cannot open :', day
 
@@ -356,8 +371,8 @@ def fn_maps(df_data, loc, resolution, name):
         pixel = None
         area = None
 
-    path_count = '../rasters/count/{}/{}/CDT_{}_{}.tif'.format(resolution, loc, loc, name)
-    path_density = '../rasters/density/{}/{}/DDT_{}_{}.tif'.format(resolution, loc, loc, name)
+    path_count = '../results/rasters/count/{}/{}/CDT_{}_{}.tif'.format(resolution, loc, loc, name)
+    path_density = '../results/rasters/density/{}/{}/DDT_{}_{}.tif'.format(resolution, loc, loc, name)
 
     xmin = ext['xmin'] - 0.1
     xmax = ext['xmax'] + 0.1
@@ -386,7 +401,10 @@ def fn_make_summary(years, months, resolution):
             ls_files = [x.split('_')[1][:4] for x in year_files]
             ls_index = [i for i, j in enumerate(ls_files) if j == str(year)]
 
-            fn_make_summary_light(files=[os.listdir('../data/rawdata/')[i] for i in ls_index], outputfile='../data/summary/year/raw_light_{}.csv'.format(str(year)))
+            exist = os.path.isfile('../data/summary/year/raw_light_{}.csv'.format(str(year)))
+
+            if not exist:
+                fn_make_summary_light(files=[os.listdir('../data/rawdata/')[i] for i in ls_index], outputfile='../data/summary/year/raw_lightning_{}.csv'.format(str(year)))
 
     elif resolution is 'M':
 
@@ -398,7 +416,13 @@ def fn_make_summary(years, months, resolution):
 
             for m in months:
                 ls_month_index = [i for i, j in enumerate(ls_files) if j == '{}{:02d}'.format(str(year), m)]
-                fn_make_summary_light(files=[os.listdir('../data/rawdata/')[i] for i in ls_month_index], outputfile='../data/summary/month/raw_lightning_{}_{:02d}.csv'.format(str(year), m))
+                if not ls_month_index:
+                    print 'No hay datos para esta fecha'
+                else:
+                    exist = os.path.isfile('../data/summary/month/raw_lightning_{}_{:02d}.csv'.format(str(year), m))
+
+                    if not exist:
+                        fn_make_summary_light(files=[os.listdir('../data/rawdata/')[i] for i in ls_month_index], outputfile='../data/summary/month/raw_lightning_{}_{:02d}.csv'.format(str(year), m))
 
     elif resolution is 'D':
 
@@ -414,7 +438,10 @@ def fn_make_summary(years, months, resolution):
 
                 for d in ls_month_index:
 
-                    fn_make_summary_light(files=[os.listdir('../data/rawdata/')[d]], outputfile='../data/summary/day/raw_lightning_{}.csv'.format(os.listdir('../data/rawdata/')[d].split('_')[1]))
+                    exist = os.path.isfile('../data/summary/day/raw_lightning_{}.csv'.format(os.listdir('../data/rawdata/')[d].split('_')[1]))
+
+                    if not exist:
+                        fn_make_summary_light(files=[os.listdir('../data/rawdata/')[d]], outputfile='../data/summary/day/raw_lightning_{}.csv'.format(os.listdir('../data/rawdata/')[d].split('_')[1]))
 
 
 def main():
@@ -426,8 +453,8 @@ def main():
     :return: CSV Compressed with the summary info
     """
     get_txt_files(all_files=True)
-    # fn_make_summary(years=[2017, 2018], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='M')
-    fn_density_maps(years=[2017, 2018], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='M', loc='BOG')
+    fn_make_summary(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='Y')
+    fn_density_maps(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='Y', loc='BOG')
 
 
 if __name__ == '__main__':

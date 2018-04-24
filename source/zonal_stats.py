@@ -1,3 +1,4 @@
+__author__ = 'krasho'
 # -*- coding: latin-1 -*-
 
 import os
@@ -10,19 +11,13 @@ import osr
 import pandas as pd
 
 '''
-Este codigo estima el promedio (si se requiere otro estadistico se debe cambiar
-en la funcion zonal stats) de un conjunto de raster para zonas
-definidas por un shapefile. El script devuelve un archivo excel con el valor
-estadistico para cada area en forma de serie. Si el analisis es para mas de
-una variable, el archivo de excel tendra tantas hojas como variables con los
-resultados. Se deben organizar en sub-carpetas los distintos rasters de acuerdo
-a cada variable.
-
-El archivo shapefile debera tener dentro de sus atributos la columna "Name" con
-el nombre de cada poligono.
+This routine estimates the average (if another statistic is required, it must be changed
+in the zonal function stats) of a raster set for zones defined by a shapefile.
+The script returns an excel file with the statistical value for each area in the form of
+a series. If the analysis is for more than one variable, the excel file will have as many
+sheets as there are variables with the results. The different rasters must be organized
+in sub-folders according to each variable.
 '''
-
-__author__ = 'jchavarro'
 
 
 def zonal_stats(feat, input_zone_polygon, input_value_raster, FID):
@@ -138,12 +133,17 @@ def zonal_stats(feat, input_zone_polygon, input_value_raster, FID):
 
     try:
         dataraster = banddataraster.ReadAsArray(xoff, yoff, xcount, ycount).astype(np.float64)
-    except Exception as e:
+
+    except UnboundLocalError as e:
+
+        print e
 
         if xoff + xcount > raster.RasterXSize:
             adj_xcount = raster.RasterXSize - xoff
+            adj_ycount = ycount
         else:
             adj_ycount = raster.RasterYSize - yoff
+            adj_xcount = xcount
 
         dataraster = banddataraster.ReadAsArray(xoff, yoff, adj_xcount, adj_ycount).astype(np.float64)
 
@@ -155,9 +155,9 @@ def zonal_stats(feat, input_zone_polygon, input_value_raster, FID):
     # Mask zone of raster
     zoneraster = np.ma.masked_array(dataraster, np.logical_not(datamask))
 
-    valor = np.ma.mean(zoneraster)
+    valor = np.ma.sum(zoneraster)
     if valor is np.ma.masked:
-        valor = np.mean(dataraster)
+        valor = np.sum(dataraster)
     else:
         pass
     return valor
@@ -170,7 +170,7 @@ def loop_zonal_stats(stat, input_zone_polygon, input_value_raster):
     feature_list = range(lyr.GetFeatureCount())
     for FID in feature_list:
         feat = lyr.GetFeature(FID)
-        stat = stat.append({'COD_DEPART': feat.GetField("COD_DEPART"), 'Count': zonal_stats(feat, input_zone_polygon, input_value_raster, FID), 'TimeStep': TimeStep}, ignore_index=True)
+        stat = stat.append({'NAME': feat.GetField("NAME"), 'Count': zonal_stats(feat, input_zone_polygon, input_value_raster, FID), 'TimeStep': TimeStep}, ignore_index=True)
     return stat
 
 
@@ -181,22 +181,25 @@ def fn_setup(stat, input_zone_polygon, input_value_raster):
 
 if __name__ == "__main__":
 
-    resolution = 'M'
-    stats_var = 'density'
-    loc = 'COL'
+    resolution = 'D'
+    stats_var = 'count'
+    loc = 'TEMP'
 
     fromfile = False
     project = 'LightStats_{}_{}_{}'.format(resolution, stats_var, loc)
     raster_files = os.listdir('../rasters/{}/{}'.format(stats_var, resolution))
 
-    date_start = {'density': '1/1/2018'}
+    date_start = {'count': '1/1/2018'}
 
     if loc is 'COL':
         shapes = 'Colombia_Continental.shp'
         col = ['COD_DEPART', 'Count', 'TimeStep']
-    else:
+    elif loc is 'BOG':
         shapes = 'Bog_localidades.shp'
         col = ['LocCodigo', 'Count', 'TimeStep']
+    else:
+        shapes = 'temp.shp'
+        col = ['Name', 'Count', 'TimeStep']
 
     xls_writer = pd.ExcelWriter('../xlsx/{}_2018.xlsx'.format(project))
 
@@ -206,7 +209,7 @@ if __name__ == "__main__":
 
         statistics = fn_setup(stat=statistics, input_zone_polygon='../gis/{}'.format(shapes), input_value_raster='../rasters/{}/{}/{}'.format(stats_var, resolution, f))
 
-    df_statistics = statistics.pivot(index='TimeStep', columns='COD_DEPART', values='Count')
+    df_statistics = statistics.pivot(index='TimeStep', columns='NAME', values='Count')
     df_index = pd.date_range(start=date_start[stats_var], periods=len(df_statistics), freq=resolution)
     df_statistics.loc[:, 'Date'] = df_index
     df_statistics.set_index(keys='Date', inplace=True)
