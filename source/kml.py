@@ -14,7 +14,7 @@ def gen_kml(points, other_info, icon, name, light):
     logo_path = get_pars_from_ini('../config/config.ini')['Paths']['logo_path']
 
     if light:
-        print len(points.index)
+        # print len(points.index)
         for event in points.index:
             pnt = kml.newpoint()
             pnt.name = str(event + 1)
@@ -90,7 +90,7 @@ def main(kml_date):
 
         except IOError as e:
 
-            print "I/O error ({0}) --->>> Date: {1}".format(e.filename.split('/')[-1], kml_date)
+            # print "No Hubo Actividad Electrica --->>> Date: {1}".format(e.filename.split('/')[-1], kml_date)
 
             dict_none = {'DESCRIPCION': '{} {}'.format(year, month),
                          'LATITUD': 4.6748,
