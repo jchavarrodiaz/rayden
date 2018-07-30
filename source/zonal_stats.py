@@ -1,4 +1,5 @@
 __author__ = 'krasho'
+
 # -*- coding: latin-1 -*-
 
 import os
@@ -170,7 +171,7 @@ def loop_zonal_stats(stat, input_zone_polygon, input_value_raster):
     feature_list = range(lyr.GetFeatureCount())
     for FID in feature_list:
         feat = lyr.GetFeature(FID)
-        stat = stat.append({'NAME': feat.GetField("NAME"), 'Count': zonal_stats(feat, input_zone_polygon, input_value_raster, FID), 'TimeStep': TimeStep}, ignore_index=True)
+        stat = stat.append({'LocCodigo': feat.GetField("LocCodigo"), 'Count': zonal_stats(feat, input_zone_polygon, input_value_raster, FID), 'TimeStep': TimeStep}, ignore_index=True)
     return stat
 
 
@@ -183,13 +184,12 @@ if __name__ == "__main__":
 
     resolution = 'D'
     stats_var = 'count'
-    loc = 'TEMP'
+    loc = 'BOG'
 
     fromfile = False
     project = 'LightStats_{}_{}_{}'.format(resolution, stats_var, loc)
-    raster_files = os.listdir('../rasters/{}/{}'.format(stats_var, resolution))
 
-    date_start = {'count': '1/1/2018'}
+    date_start = {'count': '1/1/2017'}
 
     if loc is 'COL':
         shapes = 'Colombia_Continental.shp'
@@ -201,15 +201,18 @@ if __name__ == "__main__":
         shapes = 'temp.shp'
         col = ['Name', 'Count', 'TimeStep']
 
-    xls_writer = pd.ExcelWriter('../xlsx/{}_2018.xlsx'.format(project))
+    xls_writer = pd.ExcelWriter('../results/xlsx/{}_2018.xlsx'.format(project))
 
     statistics = pd.DataFrame(data=None, columns=col)
 
+    # raster_files = os.listdir('../results/rasters/{}/{}/{}'.format(stats_var, resolution, loc))
+    raster_files = ['CDT_BOG_20171002.tif']
+
     for f in raster_files:
 
-        statistics = fn_setup(stat=statistics, input_zone_polygon='../gis/{}'.format(shapes), input_value_raster='../rasters/{}/{}/{}'.format(stats_var, resolution, f))
+        statistics = fn_setup(stat=statistics, input_zone_polygon='../gis/{}'.format(shapes), input_value_raster='../results/rasters/{}/{}/{}/{}'.format(stats_var, resolution, loc, f))
 
-    df_statistics = statistics.pivot(index='TimeStep', columns='NAME', values='Count')
+    df_statistics = statistics.pivot(index='TimeStep', columns='LocCodigo', values='Count')
     df_index = pd.date_range(start=date_start[stats_var], periods=len(df_statistics), freq=resolution)
     df_statistics.loc[:, 'Date'] = df_index
     df_statistics.set_index(keys='Date', inplace=True)

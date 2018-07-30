@@ -13,24 +13,6 @@ from config_utils import get_pars_from_ini
 from web_utils import get_all_files
 from web_utils import get_all_names
 
-platforms = {
-    'linux1': 'Linux',
-    'linux2': 'Linux',
-    'darwin': 'OS X',
-    'win32': 'Windows'
-}
-
-
-# if sys.platform not in platforms:
-#     print sys.platform
-#
-# if platforms[sys.platform] is not 'Windows':
-#     exec_prefix = sys.exec_prefix
-#     gdal_data = '{}/share/gdal/'.format(exec_prefix)
-#     os.environ['GDAL_DATA'] = gdal_data
-# elif platforms[sys.platform] is 'Windows':
-#     exec_prefix = sys.exec_prefix
-
 
 def fn_make_summary_light(files, outputfile):
     cols_headers = ['YMD', 'Hour', 'Latitude', 'Longitude', 'Height', 'Type', 'amperage', 'Error']
@@ -52,7 +34,9 @@ def fn_make_summary_light(files, outputfile):
 
 
 def fn_read_summary_csv(path_file):
-    return pd.read_csv(path_file, index_col='Date')
+    df = pd.read_csv(path_file, index_col='Date', infer_datetime_format=True)
+    df.index = pd.DatetimeIndex(df.index)
+    return df
 
 
 def fn_add_flashes(strokes):
@@ -276,7 +260,7 @@ def get_txt_files(all_files, request=None):
         get_all_files(new_files, dt_config['Paths']['path_url_light'], dt_config['Paths']['path_txt_light_out'])
 
 
-def fn_density_maps(years, months, resolution, loc):
+def fn_density_maps(years, months, days, hours, resolution, loc):
     dt_config = get_pars_from_ini('../config/config.ini')
 
     if resolution is 'Y':
@@ -302,8 +286,8 @@ def fn_density_maps(years, months, resolution, loc):
 
     elif resolution is 'M':
         months = ['{:02}'.format(i) for i in months]
-        comb_days = ['_'.join(x) for x in list((itertools.product(map(str, years), months)))]
-        for month in comb_days:
+        combos = ['_'.join(x) for x in list((itertools.product(map(str, years), months)))]
+        for month in combos:
             all_data = fn_read_summary_csv(path_file='../data/summary/month/raw_lightning_{}.csv'.format(month))
             if loc is 'BOG':
                 mask_shape = '../gis/Bog_Localidades.shp'
@@ -324,10 +308,13 @@ def fn_density_maps(years, months, resolution, loc):
                 fn_maps(data_filter, loc, resolution, month)
 
     elif resolution is 'D':
+        if days is None:
+            days = ['{:02d}'.format(i) for i in np.arange(1, 32)]
+
         days = ['{:02d}'.format(i) for i in np.arange(1, 32)]
         months = ['{:02}'.format(i) for i in months]
-        comb_days = [''.join(x) for x in list((itertools.product(map(str, years), months, days)))]
-        for day in comb_days:
+        combos = [''.join(x) for x in list((itertools.product(map(str, years), months, days)))]
+        for day in combos:
             print day
             try:
                 all_data = fn_read_summary_csv(path_file='../data/summary/day/raw_lightning_{}1200.csv'.format(day))
@@ -349,6 +336,70 @@ def fn_density_maps(years, months, resolution, loc):
                     data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
                     data_filter = fn_filter_light(raw=data, max_amp=dt_config['LightFilters']['amperage'], max_error=max_error)
                     fn_maps(data_filter, loc, resolution, day)
+            except IOError:
+                print 'cannot open :', day
+
+    elif resolution is 'H':
+        if months is None:
+            months = ['{:02d}'.format(i) for i in np.arange(1, 13)]
+
+        if days is None:
+            days = ['{:02d}'.format(i) for i in np.arange(1, 32)]
+
+        if hours is None:
+            hours = ['{:02d}'.format(i) for i in np.roll(np.arange(0, 24), shift=17)]
+
+        combos = [''.join(x) for x in list((itertools.product(years, months, days)))]
+
+        for day in combos:
+            print day
+            try:
+                all_data = fn_read_summary_csv(path_file='../data/summary/day/raw_lightning_{}1200.csv'.format(day))
+                all_data.index = all_data.index - pd.Timedelta(hours=5)
+
+                if loc is 'BOG':
+                    mask_shape = '../gis/Bog_Localidades.shp'
+                    max_error = dt_config['LightFilters']['error_bog']
+                elif loc is 'COL':
+                    mask_shape = '../gis/Colombia_Continental.shp'
+                    max_error = dt_config['LightFilters']['error_col']
+                else:
+                    mask_shape = None
+                    max_error = None
+
+                data = fn_mask_data(raw=all_data, ext=fn_get_shape_extent(mask_shape))
+                data_filter = fn_filter_light(raw=data, max_amp=dt_config['LightFilters']['amperage'], max_error=max_error)
+
+                if data_filter.empty:
+
+                    for hour in hours:
+                        if int(hour) < 7:
+                            pd_day = pd.Timestamp(day) + pd.Timedelta(days=1)
+                            day_adj = '{}{:02d}{:02d}'.format(pd_day.year, pd_day.month, pd_day.day)
+                        else:
+                            day_adj = day
+                        # Check if the file exist
+                        exist = os.path.isfile('../results/rasters/count/{}/{}/CDT_{}_{}{}.tif'.format(resolution, loc, loc, day_adj, hour))
+                        if not exist:
+                            hourly_data = data_filter
+                            fn_maps(hourly_data, loc, resolution, '{}{}00'.format(day_adj, hour))
+
+                else:
+
+                    data_filter['Hour'] = data_filter.index.hour
+                    data_filter['day'] = data_filter.index.day
+
+                    for hour in hours:
+                        if int(hour) < 7:
+                            pd_day = pd.Timestamp(day) + pd.Timedelta(days=1)
+                            day_adj = '{}{:02d}{:02d}'.format(pd_day.year, pd_day.month, pd_day.day)
+                        else:
+                            day_adj = day
+                        # Check if the file exist
+                        exist = os.path.isfile('../results/rasters/count/{}/{}/CDT_{}_{}{}.tif'.format(resolution, loc, loc, day_adj, hour))
+                        if not exist:
+                            hourly_data = data_filter[data_filter['Hour'] == int(hour)]
+                            fn_maps(hourly_data, loc, resolution, '{}{}00'.format(day_adj, hour))
             except IOError:
                 print 'cannot open :', day
 
@@ -417,7 +468,7 @@ def fn_make_summary(years, months, resolution):
             for m in months:
                 ls_month_index = [i for i, j in enumerate(ls_files) if j == '{}{:02d}'.format(str(year), m)]
                 if not ls_month_index:
-                    print 'No hay datos para esta fecha'
+                    print 'there is no data for that date'
                 else:
                     exist = os.path.isfile('../data/summary/month/raw_lightning_{}_{:02d}.csv'.format(str(year), m))
 
@@ -452,9 +503,9 @@ def main():
     or Bogota ('BOG')
     :return: CSV Compressed with the summary info
     """
-    get_txt_files(all_files=True)
-    fn_make_summary(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='Y')
-    fn_density_maps(years=[2017], months=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], resolution='Y', loc='BOG')
+    # get_txt_files(all_files=True)
+    # fn_make_summary(years=[2018], months=[6], resolution='D')
+    fn_density_maps(years=['2014', '2015', '2016', '2017', '2018'], months=['08', '09'], days=None, hours=None, resolution='H', loc='COL')
 
 
 if __name__ == '__main__':
